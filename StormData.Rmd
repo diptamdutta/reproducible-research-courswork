@@ -1,0 +1,368 @@
+---
+title: "Analysis of Severe Weather Events on USA based on NOAA Data"
+author: "Diptam Dutta"
+date: "November 17, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+
+## Synopsis
+
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+##Source Data
+
+* The storm data can be downloaded from this [link](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
+* Documentation on the data can be found from this [link](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+* National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
+##Data Processing
+
+### To process the data we need to download the data from the above mentioned link. let's start by downloading the data
+
+#### Download Data
+
+```{r downLoadData}
+if (!"StormData.csv.bz2" %in% dir("./")) {
+        download.file(
+        "http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2",
+        destfile = "StormData.csv.bz2"
+        )
+}
+```
+
+### Now Let's read the downloaded data
+
+```{r readData}
+if (!"stormdata" %in% ls()) {
+    stormdata <- read.csv(bzfile("StormData.csv.bz2"), sep = ",", header = TRUE, stringsAsFactors = FALSE)
+}
+dim(stormdata)
+```
+
+### Extact Storm Event Type
+
+```{r defineEventVector}
+Stormevents <-
+        c(
+        "Astronomical Low Tide",
+        "Avalanche",
+        "Blizzard",
+        "Coastal Flood",
+        "Cold/Wind Chill",
+        "Debris Flow",
+        "Dense Fog",
+        "Dense Smoke",
+        "Drought",
+        "Dust Devil",
+        "Dust Storm",
+        "Excessive Heat",
+        "Extreme cold/Wind Chill",
+        "Flash Flood",
+        "Flood",
+        "Freezing",
+        "Frost/Freeze",
+        "Funnel Cloud",
+        "Hail",
+        "Heat",
+        "Heavy Rain",
+        "Heavy Snow",
+        "High Surf",
+        "High Wind",
+        "Hurricane/Typhoon",
+        "Ice Storm",
+        "Lakeshore Flood",
+        "Lake-Effect Snow",
+        "Lightning",
+        "Marine Hail",
+        "Marine High Wind",
+        "Marine Strong Wind",
+        "Marine Thunderstorm Wind",
+        "Rip Current",
+        "Seiche",
+        "Sleet",
+        "Storm Tide",
+        "Strong Wind",
+        "Thunderstorm Wind",
+        "Tornado",
+        "Tropical Depression",
+        "Tropical Storm",
+        "Tsunami",
+        "Volcanic Ash",
+        "Waterspout",
+        "Wildfire",
+        "Winter Storm",
+        "Winter Weather"
+        )
+```
+
+###Some events are having charecters ie. '\\', so we will use regex to identify that
+
+```{r}
+Stormevents_regex <-
+        c(
+        "Astronomical Low Tide|Low Tide",
+        "Avalanche",
+        "Blizzard",
+        "Coastal Flood",
+        "Cold/Wind Chill",
+        "Debris Flow",
+        "Dense Fog",
+        "Dense Smoke",
+        "Drought",
+        "Dust Devil",
+        "Dust Storm",
+        "Excessive Heat",
+        "Extreme cold/Wind Chill|Extreme Cold|Wind Chill",
+        "Flash Flood",
+        "Flood",
+        "Freezing",
+        "Frost/Freeze|Frost|Freeze",
+        "Funnel Cloud",
+        "Hail",
+        "Heat",
+        "Heavy Rain",
+        "Heavy Snow",
+        "High Surf",
+        "High Wind",
+        "Hurricane/Typhoon|Hurricane|Typhoon",
+        "Ice Storm",
+        "Lakeshore Flood",
+        "Lake-Effect Snow",
+        "Lightning",
+        "Marine Hail",
+        "Marine High Wind",
+        "Marine Strong Wind",
+        "Marine Thunderstorm Wind|Marine tstm Wind",
+        "Rip Current",
+        "Seiche",
+        "Sleet",
+        "Storm Tide",
+        "Strong Wind",
+        "Thunderstorm Wind|tstm wind",
+        "Tornado",
+        "Tropical Depression",
+        "Tropical Storm",
+        "Tsunami",
+        "Volcanic Ash",
+        "Waterspout",
+        "Wildfire",
+        "Winter Storm",
+        "Winter Weather"
+        ) 
+```
+
+### We keep only the fields needed to our analysis:
+
+* EVTYPE: the type of event
+* FATALITIES: number of fatalities
+* INJURIES: number of injuries
+* PROPDMG: damage to properties in USD
+* PROPDMGEXP: magnitude for properties damage (K for thousands, M for millions, B for billions)
+* CROPDMG: damage to crops in USD
+* CROPDMGEXP: magnitude for crops damage (K for thousands, M for millions, B for billions)
+
+```{r}
+options(scipen = 999)
+cleandata <- data.frame(EVTYPE = character(0), FATALITIES = numeric(0), INJURIES = numeric(0), PROPDMG = numeric(0), PROPDMGEXP = character(0), CROPDMG = numeric(0), CROPDMGEXP = character(0))
+for (i in 1:length(Stormevents)) {
+        rows <-
+                stormdata[grep(Stormevents_regex[i], ignore.case = TRUE, stormdata$EVTYPE),]
+        rows <-
+                rows[, c(
+                        "EVTYPE",
+                        "FATALITIES",
+                        "INJURIES",
+                        "PROPDMG",
+                        "PROPDMGEXP",
+                        "CROPDMG",
+                        "CROPDMGEXP"
+                )]
+        CLEANNAME <- c(rep(Stormevents[i], nrow(rows)))
+        rows <- cbind(rows, CLEANNAME)
+        cleandata <- rbind(cleandata, rows)
+}
+```
+
+Adjusting the valid values are K for thousands(3 exp), M for millions(6 exp) and B for billions(9 exp)
+
+```{r}
+cleandata[(cleandata$PROPDMGEXP == "K" | cleandata$PROPDMGEXP == "k"), ]$PROPDMGEXP <- 3
+cleandata[(cleandata$PROPDMGEXP == "M" | cleandata$PROPDMGEXP == "m"), ]$PROPDMGEXP <- 6
+cleandata[(cleandata$PROPDMGEXP == "B" | cleandata$PROPDMGEXP == "b"), ]$PROPDMGEXP <- 9
+cleandata[(cleandata$CROPDMGEXP == "K" | cleandata$CROPDMGEXP == "k"), ]$CROPDMGEXP <- 3
+cleandata[(cleandata$CROPDMGEXP == "M" | cleandata$CROPDMGEXP == "m"), ]$CROPDMGEXP <- 6
+cleandata[(cleandata$CROPDMGEXP == "B" | cleandata$CROPDMGEXP == "b"), ]$CROPDMGEXP <- 9
+```
+
+### Calculate the properties and crop damages
+
+```{r ecoDamage}
+cleandata$PROPDMG <- cleandata$PROPDMG * 10^as.numeric(cleandata$PROPDMGEXP)
+cleandata$CROPDMG <- cleandata$CROPDMG * 10^as.numeric(cleandata$CROPDMGEXP)
+```
+### Calculate the total damages
+```{r totalDamage}
+TOTECODMG <- cleandata$PROPDMG + cleandata$CROPDMG
+cleandata <- cbind(cleandata, TOTECODMG)
+```
+
+ Thus concludes the initial prepearation of data.
+ 
+## Q.1: Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+Calulating the number of FATALITIES 
+
+```{r calculateFATALITIES}
+fatalities <- aggregate(FATALITIES ~ CLEANNAME, data = cleandata, FUN = sum)
+fatalities <- fatalities[order(fatalities$FATALITIES, decreasing = TRUE), ]
+```
+### Top 10 Events causing the most FATALITIES
+
+```{r top10FATALITIES}
+MaxFatalities <- fatalities[1:10, ]
+print(MaxFatalities)
+```
+Calulating the number of INJURIES 
+
+```{r calculateINJURIES}
+injuries <- aggregate(INJURIES ~ CLEANNAME, data = cleandata, FUN = sum)
+injuries <- injuries[order(injuries$INJURIES, decreasing = TRUE), ]
+```
+### Top 10 Events causing the most INJURIES
+
+```{r top10INJURIES}
+MaxInjuries <- injuries[1:10, ]
+print(MaxInjuries)
+```
+
+### Plotting the above information as a pair of graphs of total FATALITIES & INJURIES
+
+```{r plotINJURIESANDFATALITIES}
+par(
+        mfrow = c(1, 2),
+        mar = c(15, 4, 3, 2),
+        mgp = c(3, 1, 0),
+        cex = 0.8
+)
+barplot(
+        MaxFatalities$FATALITIES,
+        las = 3,
+        names.arg = MaxFatalities$CLEANNAME,
+        main = "Top 10 Highest Fatalities",
+        ylab = "Fatalities(Nos.)",
+        col = "RED"
+)
+barplot(
+        MaxInjuries$INJURIES,
+        las = 3,
+        names.arg = MaxInjuries$CLEANNAME,
+        main = "Top 10 Highest Injuries",
+        ylab = "Injuries(Nos.)",
+        col = "RED"
+)
+```
+
+## ANS for Qus 1
+###As you can see with respect to population health  
+####  * Fatalities : 1. Tornado & 2. Heat
+####  * Injuries :  Tornado
+
+## Q.2: Across the United States, which types of events have the greatest economic consequences?
+
+Calculating the total property damage
+
+```{r propDmg}
+propdmg <- aggregate(PROPDMG ~ CLEANNAME, data = cleandata, FUN = sum)
+propdmg <- propdmg[order(propdmg$PROPDMG, decreasing = TRUE), ]
+```
+
+### Top 10 Events causing the most property damage
+
+```{r top10PropDmg}
+propdmgMax <- propdmg[1:10, ]
+print(propdmgMax)
+```
+
+Calculating the total crop damage
+
+```{r cropDmg}
+cropdmg <- aggregate(CROPDMG ~ CLEANNAME, data = cleandata, FUN = sum)
+cropdmg <- cropdmg[order(cropdmg$CROPDMG, decreasing = TRUE), ]
+```
+
+### Top 10 Events causing the most crop damage
+
+```{r top10CropDmg}
+cropdmgMax <- cropdmg[1:10, ]
+print(cropdmgMax)
+```
+
+Calculating the total economic damage
+
+```{r ecoDmg}
+ecodmg <- aggregate(TOTECODMG ~ CLEANNAME, data = cleandata, FUN = sum)
+ecodmg <- ecodmg[order(ecodmg$TOTECODMG, decreasing = TRUE), ]
+```
+
+### Top 10 Events causing the most economic damage
+
+```{r top10EcoDmg}
+ecodmgMax <- ecodmg[1:10, ]
+print(ecodmgMax)
+```
+
+### Plotting the above information as a pair of graphs of total property, crop & economic damage
+
+```{r plotpropCropEco}
+par(
+        mfrow = c(1, 3),
+        mar = c(15, 4, 3, 2),
+        mgp = c(3, 1, 0),
+        cex = 0.8
+)
+barplot(
+        propdmgMax$PROPDMG / (10 ^ 9),
+        las = 3,
+        names.arg = propdmgMax$CLEANNAME,
+        main = "Top 10 Property Damages",
+        ylab = "damages ($ billions)",
+        col = "RED"
+)
+barplot(
+        cropdmgMax$CROPDMG / (10 ^ 9),
+        las = 3,
+        names.arg = cropdmgMax$CLEANNAME,
+        main = "Top Crop Damages",
+        ylab = "damages ($ billions)",
+        col = "RED"
+)
+barplot(
+        ecodmgMax$TOTECODMG / (10 ^ 9),
+        las = 3,
+        names.arg = ecodmgMax$CLEANNAME,
+        main = "Top 10 Economic Damages",
+        ylab = "damages ($ billions)",
+        col = "RED"
+)
+```
+
+## ANS for Qus 2
+###As you can see with respect to  economic consequences causing damage
+####  * Property  : Flood
+####  * Crop :  Drought and Flood
+####  * Economic :  Flood followed by Hurricane/Typhoon
+
+## Conclusion
+From the above analysis we can see that Tornado and Heat are most harmful with respect to Population Health, while Flood, Drought and Hurricane/Typhoon have the greatest Economic Consequences.
+
+Project Codes have been uploaded to [Github](https://github.com/diptamdutta/reproducible-research-courswork.git)
+
